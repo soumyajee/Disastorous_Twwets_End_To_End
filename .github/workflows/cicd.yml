@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 env:
-  ECR_REGISTRY: 703671911783.dkr.ecr.ap-south-1.amazonaws.com/nlp_sentiment_tweets
+  ECR_REGISTRY: 703671911783.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY: nlp_sentiment_tweets
   IMAGE_TAG: latest
 
@@ -35,8 +35,11 @@ jobs:
         run: |
           docker buildx create --use
           docker buildx inspect --bootstrap
+          
+          # Correcting the repository path
           docker buildx build --platform linux/amd64 --push \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
 
   Continuous-Deployment:
     needs: Continuous-Integration
