@@ -2,7 +2,8 @@ name: Deploy Sentiment Analysis App to EC2
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 env:
   ECR_REGISTRY: 703671911783.dkr.ecr.ap-south-1.amazonaws.com
@@ -14,24 +15,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: 🚀 Checkout Code
         uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: 🔐 Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Set up Docker Buildx
+      - name: 🏗️ Set Up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build, tag, and push Docker image to Amazon ECR
+      - name: 🏗️ Build, Tag & Push Docker Image to Amazon ECR
         id: build-image
         run: |
           docker buildx create --use
@@ -46,48 +47,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Configure AWS credentials
+      - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      - - name: Deploy Docker container on EC2
-          uses: appleboy/ssh-action@master
-          with:
-            host: ${{ secrets.EC2_HOST }}
-            username: ubuntu
-            key: ${{ secrets.EC2_SSH_KEY }}
-            port: 22
-            script: |
-              echo "Checking system updates..."
-              sudo apt-get update -y && sudo apt-get install -y awscli docker
-        
-              echo "Starting Docker service..."
-              sudo systemctl start docker || true
-        
-              echo "Logging in to ECR..."
-              aws ecr get-login-password --region ${{ secrets.AWS_DEFAULT_REGION }} | sudo docker login --username AWS --password-stdin ${{ secrets.ECR_REPO }}
-        
-              echo "Stopping and removing old container..."
-              sudo docker stop sentiment_app || true
-              sudo docker rm sentiment_app || true
-        
-              echo "Pulling latest Docker image..."
-              sudo docker pull ${{ secrets.ECR_REPO }}:latest
-        
-              echo "Running new container..."
-              sudo docker run -d --name sentiment_app -p 8080:8080 \
-                -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
-                -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
-                -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" \
-                ${{ secrets.ECR_REPO }}:latest
-        
-              echo "Cleaning up unused Docker images..."
-              sudo docker system prune -f
+      - name: 🚀 Deploy Docker Container on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            echo "🔄 Updating system..."
+            sudo apt-get update -y && sudo apt-get install -y awscli docker || true
+            
+            echo "🔄 Restarting Docker service..."
+            sudo systemctl restart docker || true
 
+            echo "🔑 Logging into AWS ECR..."
+            sudo docker logout $ECR_REGISTRY || true
+            aws ecr get-login-password --region ${{ secrets.AWS_DEFAULT_REGION }} | sudo docker login --username AWS --password-stdin $ECR_REGISTRY
 
-            echo "Cleaning up unused Docker images..."
-            sudo docker image prune -f
+            echo "🛑 Stopping and removing old containers..."
+            sudo docker ps -q | xargs -r sudo docker stop || true
+            sudo docker ps -aq | xargs -r sudo docker rm || true
 
+            echo "🧹 Removing unused Docker images..."
+            sudo docker system prune -af || true
+
+            echo "⬇️ Pulling latest Docker image..."
+            sudo docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+            echo "🚀 Running new container..."
+            sudo docker run -d --name sentiment_app -p 8080:8080 \
+              -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+              -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" \
+              $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+            echo "✅ Deployment Completed Successfully!"
